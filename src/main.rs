@@ -3,35 +3,30 @@ mod ray;
 mod hit;
 mod sphere;
 mod camera;
+mod material;
 
-use std::io::{stderr, Write};
+use std::{io::{stderr, Write}, rc::Rc};
 
 use rand::prelude::*;
 
-use vec::{Vec3, Point3, Color};
+use vec::{Point3, Color};
 use ray::Ray;
 use hit::{Hit, World};
 use sphere::Sphere;
 use camera::Camera;
+use material::{Hemispheral, Metal};
 
-// Implemented diffuse methods, underscore prefixed because only one should be used at a time
-enum DiffuseFormula {
-    _LambertianReflection, // True lambertian reflection
-    _HemispheralScattering // Hemispheral scattering 
-}
-
-fn ray_color(r: &Ray, world: &World, depth: u64, diffuse: DiffuseFormula) -> Color {
+fn ray_color(r: &Ray, world: &World, depth: u64) -> Color {
     if depth <= 0 {
         return Color::new(0.0, 0.0, 0.0);
     }
 
     if let Some(rec) = world.hit(r, 0.001, f64::INFINITY) {
-        let target = match diffuse {
-            DiffuseFormula::_LambertianReflection => rec.p + rec.normal + Vec3::random_in_unit_sphere().normalized(),
-            DiffuseFormula::_HemispheralScattering => rec.p + Vec3::random_in_hemisphere(rec.normal),
-        }; 
-        let r = Ray::new(rec.p, target - rec.p);
-        0.5 * ray_color(&r, &world, depth - 1, diffuse)
+        if let Some((attenuation, scattered)) = rec.mat.scatter(r, &rec) {
+            attenuation * ray_color(&scattered, world, depth - 1)
+        } else {
+            Color::new(0.0, 0.0, 0.0)
+        }
     } else {
         let unit_direction = r.direction().normalized();
         let t = 0.5 * (unit_direction.y() + 1.0);
@@ -47,12 +42,23 @@ fn main() {
     const IMAGE_HEIGHT: u64 = ((IMAGE_WIDTH as f64) / ASPECT_RATIO) as u64;
     const SAMPLES_PER_PIXEL: u64 = 100;
     const MAX_DEPTH: u64 = 5;
-    const DIFFUSE_FORMULA: DiffuseFormula = DiffuseFormula::_HemispheralScattering;
 
     // World
     let mut world = World::new();
-    world.push(Box::new(Sphere::new(Point3::new(0.0, 0.0, -1.0), 0.5)));
-    world.push(Box::new(Sphere::new(Point3::new(0.0, -100.5, -1.0), 100.0)));
+    let mat_ground = Rc::new(Hemispheral::new(Color::new(0.8, 0.8, 0.0)));
+    let mat_center = Rc::new(Hemispheral::new(Color::new(0.7, 0.3, 0.3)));
+    let mat_left = Rc::new(Metal::new(Color::new(0.8, 0.8, 0.8), 0.3));
+    let mat_right = Rc::new(Metal::new(Color::new(0.8, 0.6, 0.2), 1.0));
+
+    let sphere_ground = Sphere::new(Point3::new(0.0, -100.5, -1.0), 100.0, mat_ground);
+    let sphere_center = Sphere::new(Point3::new(0.0, 0.0, -1.0), 0.5, mat_center);
+    let sphere_left = Sphere::new(Point3::new(-1.0, 0.0, -1.0), 0.5, mat_left);
+    let sphere_right = Sphere::new(Point3::new(1.0, 0.0, -1.0), 0.5, mat_right);
+
+    world.push(Box::new(sphere_ground));
+    world.push(Box::new(sphere_center));
+    world.push(Box::new(sphere_left));
+    world.push(Box::new(sphere_right));
 
     // Camera
     let cam = Camera::new();
@@ -77,7 +83,7 @@ fn main() {
                 let v = ((j as f64) + random_v) / ((IMAGE_HEIGHT - 1) as f64);
 
                 let r = cam.get_ray(u, v);
-                pixel_color += ray_color(&r, &world, MAX_DEPTH, DIFFUSE_FORMULA);
+                pixel_color += ray_color(&r, &world, MAX_DEPTH);
             }
 
             println!("{}", pixel_color.format_color(SAMPLES_PER_PIXEL));
