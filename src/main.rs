@@ -2,17 +2,36 @@ mod vec;
 mod ray;
 mod hit;
 mod sphere;
+mod camera;
 
 use std::io::{stderr, Write};
+
+use rand::prelude::*;
 
 use vec::{Vec3, Point3, Color};
 use ray::Ray;
 use hit::{Hit, World};
 use sphere::Sphere;
+use camera::Camera;
 
-fn ray_color(r: &Ray, world: &World) -> Color {
-    if let Some(rec) = world.hit(r, 0.0, f64::INFINITY) {
-        0.5 * (rec.normal + Color::new(1.0, 1.0, 1.0))
+// Implemented diffuse methods, underscore prefixed because only one should be used at a time
+enum DiffuseFormula {
+    _LambertianReflection, // True lambertian reflection
+    _HemispheralScattering // Hemispheral scattering 
+}
+
+fn ray_color(r: &Ray, world: &World, depth: u64, diffuse: DiffuseFormula) -> Color {
+    if depth <= 0 {
+        return Color::new(0.0, 0.0, 0.0);
+    }
+
+    if let Some(rec) = world.hit(r, 0.001, f64::INFINITY) {
+        let target = match diffuse {
+            DiffuseFormula::_LambertianReflection => rec.p + rec.normal + Vec3::random_in_unit_sphere().normalized(),
+            DiffuseFormula::_HemispheralScattering => rec.p + Vec3::random_in_hemisphere(rec.normal),
+        }; 
+        let r = Ray::new(rec.p, target - rec.p);
+        0.5 * ray_color(&r, &world, depth - 1, diffuse)
     } else {
         let unit_direction = r.direction().normalized();
         let t = 0.5 * (unit_direction.y() + 1.0);
@@ -23,8 +42,12 @@ fn ray_color(r: &Ray, world: &World) -> Color {
 fn main() {
     // Image data
     const ASPECT_RATIO: f64 = 16.0 / 9.0;
+    // const IMAGE_WIDTH: u64 = 1920; // For bonus spheres
     const IMAGE_WIDTH: u64 = 800;
     const IMAGE_HEIGHT: u64 = ((IMAGE_WIDTH as f64) / ASPECT_RATIO) as u64;
+    const SAMPLES_PER_PIXEL: u64 = 100;
+    const MAX_DEPTH: u64 = 5;
+    const DIFFUSE_FORMULA: DiffuseFormula = DiffuseFormula::_HemispheralScattering;
 
     // World
     let mut world = World::new();
@@ -32,33 +55,32 @@ fn main() {
     world.push(Box::new(Sphere::new(Point3::new(0.0, -100.5, -1.0), 100.0)));
 
     // Camera
-    let viewport_height = 2.0;
-    let viewport_width = ASPECT_RATIO * viewport_height;
-    let focal_length = 1.0;
-
-    // Where the camera's sensor is
-    let origin = Point3::new(0.0, 0.0, 0.0);
-    let horizontal = Vec3::new(viewport_width, 0.0, 0.0);
-    let vertical = Vec3::new(0.0, viewport_height, 0.0);
-    let lower_left_corner = origin - horizontal / 2.0 - vertical / 2.0 - Vec3::new(0.0, 0.0, focal_length);
+    let cam = Camera::new();
 
     println!("P3");
     println!("{} {}", IMAGE_WIDTH, IMAGE_HEIGHT);
     println!("255");
+
+    let mut rng = rand::thread_rng();
 
     for j in (0..IMAGE_HEIGHT).rev() {
         eprint!("\rScanlines remaining: {:3}", IMAGE_HEIGHT - j - 1);
         stderr().flush().unwrap();
 
         for i in 0..IMAGE_WIDTH {
-            let u = (i as f64) / ((IMAGE_WIDTH - 1) as f64);
-            let v = (j as f64) / ((IMAGE_HEIGHT - 1) as f64);
+            let mut pixel_color = Color::new(0.0, 0.0, 0.0);
+            for _ in 0..SAMPLES_PER_PIXEL {
+                let random_u: f64 = rng.gen();
+                let random_v: f64 = rng.gen();
 
-            let r = Ray::new(origin, lower_left_corner + u * horizontal + v * vertical - origin);
+                let u = ((i as f64) + random_u) / ((IMAGE_WIDTH - 1) as f64);
+                let v = ((j as f64) + random_v) / ((IMAGE_HEIGHT - 1) as f64);
 
-            let pixel_color = ray_color(&r, &world);
+                let r = cam.get_ray(u, v);
+                pixel_color += ray_color(&r, &world, MAX_DEPTH, DIFFUSE_FORMULA);
+            }
 
-            println!("{}", pixel_color.format_color());
+            println!("{}", pixel_color.format_color(SAMPLES_PER_PIXEL));
         }
     }
     eprintln!("Done.");

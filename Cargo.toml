@@ -12,3 +12,6 @@ opt-level = 1
 lto = "fat"
 panic = "abort"
 codegen-units = 1
+
+[dependencies]
+rand = "0.8.5"
