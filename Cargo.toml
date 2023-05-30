@@ -15,3 +15,4 @@ codegen-units = 1
 
 [dependencies]
 rand = "0.8.5"
+rayon = "1.7.0"
