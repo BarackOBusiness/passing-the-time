@@ -1,6 +1,7 @@
 {
     "rust-analyzer.linkedProjects": [
         "./ray-tracing-in-one-weekend/Cargo.toml",
-        "./ppm-writer/Cargo.toml"
+        "./ppm-writer/Cargo.toml",
+        "./exercise/Cargo.toml"
     ]
 }
