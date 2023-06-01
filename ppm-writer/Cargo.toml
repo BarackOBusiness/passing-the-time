@@ -1,0 +1,9 @@
+[package]
+name = "ppm-writer"
+version = "0.1.0"
+edition = "2021"
+description = "An experimental project to determine the feasibility of writing image data directly to ppm files, for eventual integration with ray-tracing-in-one-weekend"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
