@@ -1,0 +1,9 @@
+[package]
+name = "me-being-stupid"
+version = "0.1.0"
+edition = "2021"
+description = "So I had this really stupid idea about creating a binary type that's just a boolean except it's 1 and 0 instead of true or false right, and I decide \"Why not make this a fully featured thing that gets packed into unsigned integers and shit\", and so that's what I'm doing here, none of this code should be used by anyone, ever."
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
